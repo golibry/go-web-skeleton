@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/golibry/go-params/params"
@@ -12,16 +13,16 @@ type HttpServerConfig struct {
 	// BindAddress specifies the IP address the HTTP server should bind to.
 	// Must be a valid IPv4 address (e.g., "0.0.0.0", "127.0.0.1").
 	BindAddress string `validate:"ipv4"`
-	
+
 	// BindPort specifies the port number the HTTP server should listen on.
 	// Must be a numeric value (e.g., "8080", "3000").
 	BindPort string `validate:"numeric"`
-	
+
 	// MaxHeaderBytes controls the maximum number of bytes the server will read
 	// parsing the request header's keys and values, including the request line.
 	// Must be between 0 and 64000 bytes.
 	MaxHeaderBytes int `validate:"number,gte=0,lte=64000"`
-	
+
 	// RequestTimeout specifies the maximum duration for reading the entire request,
 	// including the body. A zero or negative value means there will be no timeout.
 	RequestTimeout time.Duration
@@ -39,4 +40,16 @@ func newHttpServerConfig() HttpServerConfig {
 		MaxHeaderBytes: maxHeaderBytes,
 		RequestTimeout: requestTimeout,
 	}
+}
+
+// String returns a safe string representation of the HTTP server configuration.
+// Since HTTP configuration doesn't contain sensitive data, all values are displayed.
+func (h HttpServerConfig) String() string {
+	return fmt.Sprintf(
+		"HttpServerConfig{BindAddress: %s, BindPort: %s, MaxHeaderBytes: %d, RequestTimeout: %s}",
+		h.BindAddress,
+		h.BindPort,
+		h.MaxHeaderBytes,
+		h.RequestTimeout.String(),
+	)
 }
