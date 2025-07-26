@@ -6,5 +6,5 @@ import (
 )
 
 func RegisterRoutes(router *http.ServeMux, container *registry.Container) {
-	(&HomeController{router, container}).LoadRoutes()
+	(&StaticUiController{router, container}).LoadRoutes()
 }

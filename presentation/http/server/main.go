@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,74 +15,107 @@ import (
 	"github.com/golibry/go-web-skeleton/presentation/http/routes"
 )
 
+// main initializes the web server with a dependency injection container,
+// sets up routes, and starts the HTTP server with graceful shutdown handling.
 func main() {
-	baseErr := "Could not start web server."
+	// Initialize dependency injection container
 	container, err := registry.NewContainer()
 	if err != nil {
-		panic(fmt.Sprintf("%s Error building container registry: %s", baseErr, err))
+		panic(fmt.Sprintf("Could not start web server. Error building container registry: %s", err))
 	}
 
-	fmt.Println("Starting web server")
+	// Ensure proper cleanup of resources on exit
+	defer func() {
+		if err := container.Close(); err != nil {
+			container.Logger().Error("Failed to close container during shutdown", "error", err)
+		}
+	}()
 
+	container.Logger().Info("Starting web server")
+
+	// Initialize HTTP router and register application routes
 	router := http.NewServeMux()
 	routes.RegisterRoutes(router, container)
+
+	// Start the HTTP server with a graceful shutdown
 	startServer(container, router)
 }
 
-func startServer(
-	container *registry.Container,
-	router *http.ServeMux,
-) {
-	addr := container.Config().HttpServer.BindAddress + ":" +
-		container.Config().HttpServer.BindPort
+// startServer configures and starts the HTTP server with graceful shutdown handling.
+// It listens for system signals and performs a graceful shutdown when received.
+func startServer(container *registry.Container, router *http.ServeMux) {
+	httpConfig := container.Config().HttpServer
+	addr := httpConfig.BindAddress + ":" + httpConfig.BindPort
+	logger := container.Logger()
 
-	// Server run context
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
 
-	// The HTTP Server
+	// Configure an HTTP server with security and performance settings
 	server := &http.Server{
 		Addr:           addr,
 		Handler:        router,
-		MaxHeaderBytes: container.Config().HttpServer.MaxHeaderBytes,
-		WriteTimeout:   container.Config().HttpServer.RequestTimeout,
+		MaxHeaderBytes: httpConfig.MaxHeaderBytes,
+		WriteTimeout:   httpConfig.RequestTimeout,
+		ReadTimeout:    httpConfig.RequestTimeout,
+		IdleTimeout:    httpConfig.RequestTimeout,
 	}
 
-	// Listen for syscall signals for process to interrupt/quit
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	// Set up graceful shutdown handling
+	setupGracefulShutdown(server, serverCtx, serverStopCtx, logger)
+
+	logger.Info("HTTP server starting", "address", addr)
+
+	// Start the HTTP server
+	err := server.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Error("HTTP server failed to start", "error", err, "address", addr)
+		return
+	}
+
+	// Wait for a graceful shutdown to complete
+	<-serverCtx.Done()
+	logger.Info("HTTP server shutdown complete")
+}
+
+// setupGracefulShutdown configures signal handling for graceful server shutdown.
+// It listens for SIGINT, SIGTERM, SIGHUP, and SIGQUIT signals.
+func setupGracefulShutdown(
+	server *http.Server,
+	serverCtx context.Context,
+	serverStopCtx context.CancelFunc,
+	logger *slog.Logger,
+) {
+	const gracePeriod = 30 * time.Second
+
+	// Create a signal channel and register for shutdown signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
+
 	go func() {
-		<-sig
+		// Wait for a shutdown signal
+		sig := <-sigChan
+		logger.Info("Shutdown signal received", "signal", sig.String())
 
-		// Shutdown signal with grace period of 30 seconds
-		shutdownCtx, gracePeriodCancel := context.WithTimeout(serverCtx, 30*time.Second)
-		defer gracePeriodCancel()
+		// Create a shutdown context with timeout
+		shutdownCtx, cancel := context.WithTimeout(serverCtx, gracePeriod)
+		defer cancel()
 
+		// Monitor for shutdown timeout
 		go func() {
 			<-shutdownCtx.Done()
 			if errors.Is(shutdownCtx.Err(), context.DeadlineExceeded) {
-				fmt.Println("Graceful shutdown timed out ... forcing exit")
+				logger.Warn("Graceful shutdown timed out, forcing exit", "timeout", gracePeriod)
 			}
 		}()
 
-		// Trigger graceful shutdown
-		err := server.Shutdown(shutdownCtx)
-		if err != nil {
-			container.Logger().Error(err.Error())
-			fmt.Println("[ERROR]", err.Error())
+		// Perform a graceful shutdown
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			logger.Error("Error during server shutdown", "error", err)
+		} else {
+			logger.Info("Server shutdown initiated successfully")
 		}
+
+		// Signal that shutdown is complete
 		serverStopCtx()
 	}()
-
-	fmt.Println("HTTP server now listening on " + addr)
-
-	// Run the server
-	err := server.ListenAndServe()
-
-	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		container.Logger().Error(err.Error())
-		fmt.Println("[ERROR]", err.Error())
-	}
-
-	// Wait for server context to be stopped
-	<-serverCtx.Done()
 }
