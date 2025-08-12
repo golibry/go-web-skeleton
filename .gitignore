@@ -24,3 +24,10 @@ go.work.sum
 # Editor/IDE
 .idea/
 .vscode/
+
+# local env
+/.env.local
+/.env.*.local
+
+# var (app data folder)
+/var/

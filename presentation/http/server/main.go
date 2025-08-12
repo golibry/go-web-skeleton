@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/golibry/go-http/http/router/middleware"
 	"github.com/golibry/go-web-skeleton/infrastructure/registry"
 	"github.com/golibry/go-web-skeleton/presentation/http/routes"
 )
@@ -41,9 +42,38 @@ func main() {
 	startServer(container, router)
 }
 
+// buildGlobalMiddlewareChain wraps the router with middleware components from golibry/go-http
+func buildGlobalMiddlewareChain(
+	router *http.ServeMux,
+	container *registry.Container,
+	ctx context.Context,
+) http.Handler {
+	logger := container.Logger()
+
+	// Start with the base mux as the handler
+	handler := http.Handler(router)
+
+	// Wrap with Access Logger middleware
+	accessLogOptions := middleware.AccessLogOptions{
+		LogClientIp: true,
+	}
+	handler = middleware.NewHTTPAccessLogger(handler, logger, accessLogOptions)
+
+	// Wrap with path normalizer
+	handler = middleware.NewPathNormalizer(handler)
+
+	// Wrap with Recoverer middleware (outermost layer)
+	handler = middleware.NewRecoverer(handler, ctx, logger)
+
+	return handler
+}
+
 // startServer configures and starts the HTTP server with graceful shutdown handling.
 // It listens for system signals and performs a graceful shutdown when received.
-func startServer(container *registry.Container, router *http.ServeMux) {
+func startServer(
+	container *registry.Container,
+	router *http.ServeMux,
+) {
 	httpConfig := container.Config().HttpServer
 	addr := httpConfig.BindAddress + ":" + httpConfig.BindPort
 	logger := container.Logger()
@@ -52,16 +82,15 @@ func startServer(container *registry.Container, router *http.ServeMux) {
 
 	// Configure an HTTP server with security and performance settings
 	server := &http.Server{
-		Addr:           addr,
-		Handler:        router,
-		MaxHeaderBytes: httpConfig.MaxHeaderBytes,
-		WriteTimeout:   httpConfig.RequestTimeout,
-		ReadTimeout:    httpConfig.RequestTimeout,
-		IdleTimeout:    httpConfig.RequestTimeout,
+		Addr:              addr,
+		Handler:           buildGlobalMiddlewareChain(router, container, serverCtx),
+		MaxHeaderBytes:    httpConfig.MaxHeaderBytes,
+		ReadHeaderTimeout: httpConfig.RequestTimeout,
+		IdleTimeout:       httpConfig.RequestTimeout,
 	}
 
 	// Set up graceful shutdown handling
-	setupGracefulShutdown(server, serverCtx, serverStopCtx, logger)
+	setupGracefulShutdown(server, serverCtx, serverStopCtx, logger, httpConfig.RequestTimeout)
 
 	logger.Info("HTTP server starting", "address", addr)
 
@@ -84,9 +113,8 @@ func setupGracefulShutdown(
 	serverCtx context.Context,
 	serverStopCtx context.CancelFunc,
 	logger *slog.Logger,
+	gracePeriod time.Duration,
 ) {
-	const gracePeriod = 30 * time.Second
-
 	// Create a signal channel and register for shutdown signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)

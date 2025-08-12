@@ -32,7 +32,7 @@ func newHttpServerConfig() HttpServerConfig {
 	bindAddress, _ := params.GetEnvAsString("HTTP_BIND_ADDRESS", "0.0.0.0")
 	bindPort, _ := params.GetEnvAsString("HTTP_BIND_PORT", "8080")
 	maxHeaderBytes, _ := params.GetEnvAsInt("HTTP_MAX_HEADER_BYTES", 1024*16)
-	requestTimeout, _ := params.GetEnvAsDuration("HTTP_REQUEST_TIMEOUT", 15*time.Second)
+	requestTimeout, _ := params.GetEnvAsDuration("HTTP_REQUEST_TIMEOUT", 30*time.Second)
 
 	return HttpServerConfig{
 		BindAddress:    bindAddress,

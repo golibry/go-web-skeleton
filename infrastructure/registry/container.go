@@ -8,6 +8,7 @@ type Container struct {
 	*LoggerService
 	*ConfigService
 	*DbService
+	*ResponseBuilder
 }
 
 // Close implements graceful shutdown for all services
@@ -54,12 +55,14 @@ func NewContainer() (*Container, error) {
 		return nil, fmt.Errorf("failed to create database service: %w", err)
 	}
 
+	responseBuilderService := NewResponseBuilderService(loggerService)
+
 	container := &Container{
-		LoggerService: loggerService,
-		ConfigService: configService,
-		DbService:     dbService,
+		LoggerService:   loggerService,
+		ConfigService:   configService,
+		DbService:       dbService,
+		ResponseBuilder: responseBuilderService,
 	}
 
 	return container, nil
 }
-

@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/golibry/go-migrations/cli"
 	"github.com/golibry/go-migrations/execution/repository"
 	"github.com/golibry/go-migrations/migration"
 	"github.com/golibry/go-web-skeleton/infrastructure/registry"
 	"github.com/golibry/go-web-skeleton/migrations/versions"
-	"os"
-	"path/filepath"
-	"reflect"
 )
 
 func main() {

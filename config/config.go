@@ -40,8 +40,9 @@ type Config struct {
 
 // BuildConfig builds the config struct with comprehensive validation and error handling.
 func BuildConfig() (Config, error) {
-	appDir, _ := params.GetEnvAsString("APP_BASE_DIR", "")
-	appEnv, _ := params.GetEnvAsString("APP_ENV", "")
+	defaultAppDir, _ := determineAppBaseDir()
+	appDir, _ := params.GetEnvAsString("APP_BASE_DIR", defaultAppDir)
+	appEnv, _ := params.GetEnvAsString("APP_ENV", "dev")
 	logLevel, _ := params.GetEnvAsString("APP_LOG_LEVEL", "warn")
 	logPath, _ := params.GetEnvAsString("APP_LOG_PATH", "stdout")
 
@@ -166,6 +167,7 @@ func loadEnvVars(env string, appBaseDir string) error {
 	}
 
 	genericLocalFileName := filepath.Join(appBaseDir, ".env.local")
+
 	if env != "test" {
 		if _, err := os.Stat(genericLocalFileName); err == nil {
 			err := godotenv.Load(genericLocalFileName)
@@ -218,4 +220,18 @@ func parseLogLevel(level string) slog.Level {
 	default:
 		return slog.LevelWarn
 	}
+}
+
+func determineAppBaseDir() (string, error) {
+	// Option 1: Use the current working directory
+	if wd, err := os.Getwd(); err == nil {
+		return wd, nil
+	}
+
+	// Option 2: Use executable directory as fallback
+	if ex, err := os.Executable(); err == nil {
+		return filepath.Dir(ex), nil
+	}
+
+	return "", fmt.Errorf("unable to determine application base directory")
 }
