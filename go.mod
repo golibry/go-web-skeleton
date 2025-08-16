@@ -8,7 +8,7 @@ require (
 	github.com/golibry/go-cli-command v0.1.0
 	github.com/golibry/go-common-domain v0.2.0
 	github.com/golibry/go-http v0.2.5
-	github.com/golibry/go-migrations v0.1.1
+	github.com/golibry/go-migrations v0.1.2
 	github.com/golibry/go-params v0.1.0
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.10.0

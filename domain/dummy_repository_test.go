@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/golibry/go-web-skeleton/infrastructure/registry"
+	"github.com/golibry/go-web-skeleton/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -12,6 +13,30 @@ import (
 // DummyRepositoryTestSuite is the test suite for DummyRepository
 type DummyRepositoryTestSuite struct {
 	suite.Suite
+	bootstrap  *test.Bootstrap
+	repository *DummyRepository
+}
+
+// SetupSuite initializes the test environment using the bootstrap mechanism
+func (suite *DummyRepositoryTestSuite) SetupSuite() {
+	// Use the test bootstrap to set up the environment
+	suite.bootstrap, _ = test.GetGlobalTestBootstrap()
+
+	// Initialize repository
+	suite.repository = NewDummyRepository(*suite.bootstrap.DbService)
+}
+
+// TearDownSuite cleans up resources after all tests
+func (suite *DummyRepositoryTestSuite) TearDownSuite() {
+	suite.bootstrap.TeardownTestEnvironment()
+}
+
+// TearDownTest cleans up test data after each test
+func (suite *DummyRepositoryTestSuite) TearDownTest() {
+	_, err := suite.bootstrap.DbService.Db().Exec("TRUNCATE TABLE dummy")
+	if err != nil {
+		suite.T().Fatalf("Warning: Failed to clean up test data: %v", err)
+	}
 }
 
 // TestDummyRepositoryTestSuite runs the test suite
@@ -60,30 +85,44 @@ func (suite *DummyRepositoryTestSuite) TestItCannotSaveWhenDatabaseConnectionIsN
 	assert.Contains(suite.T(), err.Error(), "database connection is nil")
 }
 
-func (suite *DummyRepositoryTestSuite) TestItIdentifiesNewDummyByZeroId() {
+func (suite *DummyRepositoryTestSuite) TestItCanPerformHappyUpsertFlow() {
 	// Given
-	dummy, _ := NewDummy("test")
+	ctx := context.Background()
 
-	// Then - NewDummy creates entity with zero ID
-	assert.Equal(suite.T(), 0, dummy.GetId(), "New dummy should have zero ID")
-}
+	// When - Create new dummy (INSERT operation)
+	dummy, err := NewDummy("Initial Name")
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), 0, dummy.GetId()) // New entity should have ID = 0
 
-func (suite *DummyRepositoryTestSuite) TestItIdentifiesExistingDummyByNonZeroId() {
-	// Given
-	dummy := ReconstituteDummy(123, "existing")
+	// Save the new dummy (should perform INSERT)
+	err = suite.repository.Save(ctx, dummy)
 
-	// Then - ReconstituteDummy creates entity with provided ID
-	assert.Equal(suite.T(), 123, dummy.GetId(), "Reconstituted dummy should have provided ID")
-}
+	// Then - Verify INSERT worked
+	assert.NoError(suite.T(), err)
+	assert.Greater(suite.T(), dummy.GetId(), 0) // Should have auto-generated ID
+	insertedId := dummy.GetId()
+	assert.Equal(suite.T(), "Initial Name", dummy.GetName())
 
-func (suite *DummyRepositoryTestSuite) TestItCanAddIdentityToNewDummy() {
-	// Given
-	dummy, _ := NewDummy("test")
-	assert.Equal(suite.T(), 0, dummy.GetId(), "Initially should have zero ID")
+	// When - Update the existing dummy (UPDATE operation)
+	// Create a new dummy with the same ID but different name
+	updatedDummy := ReconstituteDummy(insertedId, "Updated Name")
+	assert.Equal(suite.T(), insertedId, updatedDummy.GetId()) // Should have the existing ID
 
-	// When
-	dummy.AddIdentity(456)
+	// Save the updated dummy (should perform UPDATE)
+	err = suite.repository.Save(ctx, updatedDummy)
 
-	// Then
-	assert.Equal(suite.T(), 456, dummy.GetId(), "Should have the added identity")
+	// Then - Verify UPDATE worked
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), insertedId, updatedDummy.GetId()) // ID should remain the same
+	assert.Equal(suite.T(), "Updated Name", updatedDummy.GetName())
+
+	// Additional verification - Query the database directly to confirm the update
+	var dbName string
+	err = suite.bootstrap.DbService.Db().QueryRowContext(
+		ctx,
+		"SELECT name FROM dummy WHERE id = ?",
+		insertedId,
+	).Scan(&dbName)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), "Updated Name", dbName)
 }

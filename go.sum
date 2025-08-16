@@ -26,6 +26,8 @@ github.com/golibry/go-http v0.2.5 h1:rS+cEdKL6fz7Ua81w6Ozx/c4JD44HxR1FEtklJ865/w
 github.com/golibry/go-http v0.2.5/go.mod h1:SR7ycHixyXEM584v7qcGZNkmkKOw7fm8Q9FcrRn4S50=
 github.com/golibry/go-migrations v0.1.1 h1:yBYAtItWn23Ob7nOiGQBK0uE4PDxYjrGEGBtYYQ0h6w=
 github.com/golibry/go-migrations v0.1.1/go.mod h1:bZhsFvmq3oulg4wyt8skZMM5oCH2SIergD7ANQRfvI0=
+github.com/golibry/go-migrations v0.1.2 h1:X0g/0UAoO628KvyZOZgjDlqOchTPlNSvT+agjQ3N2L0=
+github.com/golibry/go-migrations v0.1.2/go.mod h1:bZhsFvmq3oulg4wyt8skZMM5oCH2SIergD7ANQRfvI0=
 github.com/golibry/go-params v0.1.0 h1:JzgxTbocNLtk4x6XlEG02KuMata2a9quTF8+J4C0mm4=
 github.com/golibry/go-params v0.1.0/go.mod h1:X0IWM7rrjmYnWebvHByRsCptD9ZVb9CqpsZvCdkiLrg=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -40,16 +41,16 @@ type Config struct {
 
 // BuildConfig builds the config struct with comprehensive validation and error handling.
 func BuildConfig() (Config, error) {
-	defaultAppDir, _ := determineAppBaseDir()
-	appDir, _ := params.GetEnvAsString("APP_BASE_DIR", defaultAppDir)
+	appDir, _ := params.GetEnvAsString("APP_BASE_DIR", determineAppBaseDir())
 	appEnv, _ := params.GetEnvAsString("APP_ENV", "dev")
-	logLevel, _ := params.GetEnvAsString("APP_LOG_LEVEL", "warn")
-	logPath, _ := params.GetEnvAsString("APP_LOG_PATH", "stdout")
 
 	// Load environment variables first
 	if err := loadEnvVars(appEnv, appDir); err != nil {
 		return Config{}, fmt.Errorf("failed to load environment variables: %w", err)
 	}
+
+	logLevel, _ := params.GetEnvAsString("APP_LOG_LEVEL", "warn")
+	logPath, _ := params.GetEnvAsString("APP_LOG_PATH", "stdout")
 
 	// Build configuration struct
 	config := Config{
@@ -222,16 +223,7 @@ func parseLogLevel(level string) slog.Level {
 	}
 }
 
-func determineAppBaseDir() (string, error) {
-	// Option 1: Use the current working directory
-	if wd, err := os.Getwd(); err == nil {
-		return wd, nil
-	}
-
-	// Option 2: Use executable directory as fallback
-	if ex, err := os.Executable(); err == nil {
-		return filepath.Dir(ex), nil
-	}
-
-	return "", fmt.Errorf("unable to determine application base directory")
+func determineAppBaseDir() string {
+	_, filePath, _, _ := runtime.Caller(0)
+	return filepath.Dir(filepath.Dir(filePath))
 }

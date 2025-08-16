@@ -11,8 +11,7 @@ import (
 )
 
 type DbService struct {
-	db     *sql.DB
-	config config.DatabaseConfig
+	db *sql.DB
 }
 
 func NewDbService(cfg *ConfigService) (*DbService, error) {
@@ -27,8 +26,7 @@ func NewDbService(cfg *ConfigService) (*DbService, error) {
 	}
 
 	service := &DbService{
-		db:     db,
-		config: dbConfig,
+		db: db,
 	}
 
 	// Test the connection with context and timeout
@@ -41,6 +39,12 @@ func NewDbService(cfg *ConfigService) (*DbService, error) {
 	}
 
 	return service, nil
+}
+
+func NewDbServiceFromDb(db *sql.DB) *DbService {
+	return &DbService{
+		db: db,
+	}
 }
 
 func (d *DbService) Db() *sql.DB {
