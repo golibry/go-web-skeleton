@@ -20,6 +20,8 @@ github.com/golibry/go-cli-command v0.1.0 h1:ySPlJGA/JoO4cZSLPmgswvOpFkgy5TIPeiZE
 github.com/golibry/go-cli-command v0.1.0/go.mod h1:4qj0I8tvwxMEfmFELfWKLLiHt6Fki7Ve6nPYmOtLWlo=
 github.com/golibry/go-common-domain v0.2.0 h1:ja9skdKN2C/G1NJ6FXJXFBaLfoHo8FjvHTaUM9pV44c=
 github.com/golibry/go-common-domain v0.2.0/go.mod h1:dZwCSHl65PROaH0kjkdigxUQFoYBy96biVcx+C/CMcw=
+github.com/golibry/go-config v0.1.2 h1:v3Q7vm2TROV6zZJBjjv+ZA79XA+yIBdXwKAvicj3sBk=
+github.com/golibry/go-config v0.1.2/go.mod h1:zaHY0h81Vgu46qCtQxHJmyj4vfLz5ZUOzzV9sWC4zi8=
 github.com/golibry/go-fs v0.1.0 h1:A1aoSvKU+IlboSjegXqz6Va7XsQrhNBCj33JJsQ/IBY=
 github.com/golibry/go-fs v0.1.0/go.mod h1:w6q6HCP7BO0SLsiX7RentTDZIZDmJsR1ZQOXRUUKdws=
 github.com/golibry/go-http v0.2.5 h1:rS+cEdKL6fz7Ua81w6Ozx/c4JD44HxR1FEtklJ865/w=

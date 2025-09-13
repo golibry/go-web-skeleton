@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	goconfig "github.com/golibry/go-config/config"
 	"github.com/golibry/go-params/params"
-	"github.com/joho/godotenv"
 )
 
 // Config includes all app configuration.
@@ -39,40 +39,51 @@ type Config struct {
 	Db DatabaseConfig `validate:"required"`
 }
 
-// BuildConfig builds the config struct with comprehensive validation and error handling.
+// Populate implements the go-config Config interface for the top-level Config.
+// It reads values from environment variables and sets defaults.
+func (c *Config) Populate() error {
+	appDir, _ := params.GetEnvAsString("APP_BASE_DIR", determineAppBaseDir())
+	appEnv, _ := params.GetEnvAsString("APP_ENV", "dev")
+	logLevel, _ := params.GetEnvAsString("APP_LOG_LEVEL", "warn")
+	logPath, _ := params.GetEnvAsString("APP_LOG_PATH", "stdout")
+
+	c.AppBaseDir = appDir
+	c.AppEnv = appEnv
+	c.LogLevel = parseLogLevel(logLevel)
+	c.LogPath = logPath
+	// Nested configs are populated by CompositeConfig
+	return nil
+}
+
+// BuildConfig builds the config struct using golibry/go-config and validates it.
 func BuildConfig() (Config, error) {
 	appDir, _ := params.GetEnvAsString("APP_BASE_DIR", determineAppBaseDir())
 	appEnv, _ := params.GetEnvAsString("APP_ENV", "dev")
 
-	// Load environment variables first
-	if err := loadEnvVars(appEnv, appDir); err != nil {
+	// Load environment variables using the shared go-config loader (respects priority order)
+	if err := goconfig.LoadEnvVars(appEnv, appDir); err != nil {
 		return Config{}, fmt.Errorf("failed to load environment variables: %w", err)
 	}
 
-	logLevel, _ := params.GetEnvAsString("APP_LOG_LEVEL", "warn")
-	logPath, _ := params.GetEnvAsString("APP_LOG_PATH", "stdout")
-
-	// Build configuration struct
-	config := Config{
-		AppBaseDir: appDir,
-		AppEnv:     appEnv,
-		LogLevel:   parseLogLevel(logLevel),
-		LogPath:    logPath,
-		HttpServer: newHttpServerConfig(),
-		Db:         newDatabaseConfig(),
+	cfg := Config{}
+	// Populate top-level config fields
+	if err := cfg.Populate(); err != nil {
+		return Config{}, fmt.Errorf("failed to populate top-level config: %w", err)
 	}
 
-	// Validate configuration with custom validators
+	// Prepare validator and register custom rules
 	validate := validator.New(validator.WithRequiredStructEnabled())
 	if err := registerCustomValidators(validate); err != nil {
 		return Config{}, fmt.Errorf("failed to register custom validators: %w", err)
 	}
 
-	if err := validate.Struct(config); err != nil {
+	// Build composite config and populate nested configs + validate all
+	composite := goconfig.NewCompositeConfig(validate)
+	if err := composite.PopulateAndValidate(&cfg, appEnv, appDir); err != nil {
 		return Config{}, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
-	return config, nil
+	return cfg, nil
 }
 
 // String returns a safe string representation of the configuration with sensitive data masked.
@@ -151,61 +162,6 @@ func validateLogPath(fl validator.FieldLevel) bool {
 	}
 
 	return false
-}
-
-// loadEnvVars Loads the entries from env files and sets them as env variables for this process.
-// Loads each file in order: .env.{dev|prod|test}.local, .env.local, .env.{dev|prod|test}, .env.
-// The first loaded file has priority. Files will not overwrite the values of the already loaded
-// env vars (already loaded from env files or via other means).
-func loadEnvVars(env string, appBaseDir string) error {
-	localEnvFileName := filepath.Join(appBaseDir, ".env."+env+".local")
-	if _, err := os.Stat(localEnvFileName); err == nil {
-		err := godotenv.Load(localEnvFileName)
-
-		if err != nil {
-			return formatEnvLoadErr(localEnvFileName, err)
-		}
-	}
-
-	genericLocalFileName := filepath.Join(appBaseDir, ".env.local")
-
-	if env != "test" {
-		if _, err := os.Stat(genericLocalFileName); err == nil {
-			err := godotenv.Load(genericLocalFileName)
-
-			if err != nil {
-				return formatEnvLoadErr(genericLocalFileName, err)
-			}
-		}
-	}
-
-	genericEnvFileName := filepath.Join(appBaseDir, ".env."+env)
-	if _, err := os.Stat(genericEnvFileName); err == nil {
-		err := godotenv.Load(genericEnvFileName)
-
-		if err != nil {
-			return formatEnvLoadErr(genericEnvFileName, err)
-		}
-	}
-
-	baseEnvFileName := filepath.Join(appBaseDir, ".env")
-	if _, err := os.Stat(baseEnvFileName); err == nil {
-		err := godotenv.Load(baseEnvFileName)
-
-		if err != nil {
-			return formatEnvLoadErr(baseEnvFileName, err)
-		}
-	}
-
-	return nil
-}
-
-func formatEnvLoadErr(fileName string, err error) error {
-	return fmt.Errorf(
-		"error occurred while trying to load env file: %s. Error message: %s",
-		fileName,
-		err.Error(),
-	)
 }
 
 func parseLogLevel(level string) slog.Level {

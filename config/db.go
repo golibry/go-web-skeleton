@@ -39,7 +39,9 @@ type DatabaseConfig struct {
 	DbName            string `validate:"required"`
 }
 
-func newDatabaseConfig() DatabaseConfig {
+// Populate implements the go-config Config interface for DatabaseConfig.
+// It reads values from environment variables providing sensible defaults.
+func (d *DatabaseConfig) Populate() error {
 	dsn, _ := params.GetEnvAsString("DB_DSN", "")
 	maxIdleConnections, _ := params.GetEnvAsInt("DB_MAX_IDLE_CONNECTIONS", 2)
 	maxOpenConnections, _ := params.GetEnvAsInt("DB_MAX_OPEN_CONNECTIONS", 10)
@@ -54,15 +56,14 @@ func newDatabaseConfig() DatabaseConfig {
 	migrationsDirPath, _ := params.GetEnvAsString("DB_MIGRATIONS_DIR_PATH", "")
 	dbName, _ := params.GetEnvAsString("DB_NAME", "")
 
-	return DatabaseConfig{
-		Dsn:                   dsn,
-		MaxIdleConnections:    maxIdleConnections,
-		MaxOpenConnections:    maxOpenConnections,
-		ConnectionMaxIdleTime: connectionMaxIdleTime,
-		ConnectionMaxLifetime: connectionMaxLifetime,
-		MigrationsDirPath:     migrationsDirPath,
-		DbName:                dbName,
-	}
+	d.Dsn = dsn
+	d.MaxIdleConnections = maxIdleConnections
+	d.MaxOpenConnections = maxOpenConnections
+	d.ConnectionMaxIdleTime = connectionMaxIdleTime
+	d.ConnectionMaxLifetime = connectionMaxLifetime
+	d.MigrationsDirPath = migrationsDirPath
+	d.DbName = dbName
+	return nil
 }
 
 // String returns a safe string representation of the database configuration.
