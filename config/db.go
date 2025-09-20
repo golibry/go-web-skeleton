@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/golibry/go-params/params"
@@ -64,18 +63,4 @@ func (d *DatabaseConfig) Populate() error {
 	d.MigrationsDirPath = migrationsDirPath
 	d.DbName = dbName
 	return nil
-}
-
-// String returns a safe string representation of the database configuration.
-// Sensitive data like DSN credentials are masked for security.
-func (d DatabaseConfig) String() string {
-	return fmt.Sprintf(
-		"DatabaseConfig{Dsn: %s, MaxIdleConnections: %d, MaxOpenConnections: %d, ConnectionMaxIdleTime: %s, ConnectionMaxLifetime: %s, MigrationsDirPath: %s}",
-		maskSensitiveData(d.Dsn),
-		d.MaxIdleConnections,
-		d.MaxOpenConnections,
-		d.ConnectionMaxIdleTime.String(),
-		d.ConnectionMaxLifetime.String(),
-		d.MigrationsDirPath,
-	)
 }

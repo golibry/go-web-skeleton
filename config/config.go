@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/go-playground/validator/v10"
 	goconfig "github.com/golibry/go-config/config"
@@ -86,48 +85,16 @@ func BuildConfig() (Config, error) {
 	return cfg, nil
 }
 
-// String returns a safe string representation of the configuration with sensitive data masked.
-// This method is useful for logging configuration without exposing sensitive information.
-func (c Config) String() string {
-	return fmt.Sprintf(
-		"Config{AppBaseDir: %s, AppEnv: %s, LogLevel: %s, LogPath: %s, HttpServer: %s, Db: %s}",
-		c.AppBaseDir,
-		c.AppEnv,
-		c.LogLevel.String(),
-		c.LogPath,
-		c.HttpServer.String(),
-		c.Db.String(),
-	)
-}
-
-// maskSensitiveData masks sensitive information in a string for safe logging.
-func maskSensitiveData(data string) string {
-	if data == "" {
-		return ""
+// Debug returns a safe, human-readable string representation of the configuration.
+// It leverages the go-config Debug() helper to recursively print the config while masking
+// sensitive values (e.g., DSNs, passwords, tokens, secrets).
+func (c Config) Debug() string {
+	// Keywords are checked against field names (case-insensitive) to decide masking.
+	sensitiveKeys := []string{
+		"dsn", "password", "pass", "secret", "token", "apikey",
+		"api_key", "key", "auth", "authorization",
 	}
-
-	// For DSN strings, mask everything after the first character and before the last character
-	if strings.Contains(data, "@") && strings.Contains(data, ":") {
-		parts := strings.Split(data, "@")
-		if len(parts) >= 2 {
-			// Mask the user:password part
-			userPass := parts[0]
-			if len(userPass) > 2 {
-				masked := string(userPass[0]) + strings.Repeat(
-					"*",
-					len(userPass)-2,
-				) + string(userPass[len(userPass)-1])
-				return masked + "@" + parts[1]
-			}
-		}
-	}
-
-	// For other sensitive data, show the first and last character with asterisks in between
-	if len(data) <= 2 {
-		return strings.Repeat("*", len(data))
-	}
-
-	return string(data[0]) + strings.Repeat("*", len(data)-2) + string(data[len(data)-1])
+	return goconfig.Debug(c, sensitiveKeys)
 }
 
 // registerCustomValidators registers custom validation functions with the validator instance.
