@@ -12,44 +12,78 @@ import (
 	"time"
 
 	"github.com/golibry/go-http/http/router/middleware"
-	"github.com/golibry/go-web-skeleton/infrastructure/registry"
-	"github.com/golibry/go-web-skeleton/presentation/http/routes"
+	"github.com/golibry/go-web-skeleton/config"
 )
 
-// main initializes the web server with a dependency injection container,
-// sets up routes, and starts the HTTP server with graceful shutdown handling.
-func main() {
-	// Initialize dependency injection container
-	container, err := registry.NewContainer()
-	if err != nil {
-		panic(fmt.Sprintf("Could not start web server. Error building container registry: %s", err))
+type ServerOptions struct {
+	ServerConfig   config.HttpServerConfig
+	Logger         *slog.Logger
+	RegisterRoutes func(router *http.ServeMux)
+}
+
+func StartServer(options ServerOptions) {
+	if options.RegisterRoutes == nil {
+		panic(
+			fmt.Errorf(
+				"failed to start web server: %s",
+				"register routes function is required",
+			),
+		)
 	}
 
-	// Ensure proper cleanup of resources on exit
-	defer func() {
-		if err := container.Close(); err != nil {
-			container.Logger().Error("Failed to close container during shutdown", "error", err)
-		}
-	}()
+	if options.Logger == nil {
+		panic(
+			fmt.Errorf(
+				"failed to start web server: %s",
+				"logger is required",
+			),
+		)
+	}
 
-	container.Logger().Info("Starting web server")
+	options.Logger.Info("Starting web server")
 
 	// Initialize HTTP router and register application routes
 	router := http.NewServeMux()
-	routes.RegisterRoutes(router, container)
+	options.RegisterRoutes(router)
 
 	// Start the HTTP server with a graceful shutdown
-	startServer(container, router)
+	addr := options.ServerConfig.BindAddress + ":" + options.ServerConfig.BindPort
+	serverCtx, serverStopCtx := context.WithCancel(context.Background())
+
+	// Configure an HTTP server with security and performance settings
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           buildGlobalMiddlewareChain(router, options.Logger, serverCtx),
+		MaxHeaderBytes:    options.ServerConfig.MaxHeaderBytes,
+		ReadHeaderTimeout: options.ServerConfig.RequestTimeout,
+		IdleTimeout:       options.ServerConfig.RequestTimeout,
+	}
+
+	// Set up graceful shutdown handling
+	setupGracefulShutdown(
+		server, serverCtx, serverStopCtx, options.Logger, options.ServerConfig.RequestTimeout,
+	)
+
+	// Start the HTTP server
+	err := server.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		options.Logger.Error("HTTP server failed to start", "error", err, "address", addr)
+		return
+	}
+
+	options.Logger.Info("HTTP server started", "address", addr)
+
+	// Wait for a graceful shutdown to complete
+	<-serverCtx.Done()
+	options.Logger.Info("HTTP server shutdown complete")
 }
 
 // buildGlobalMiddlewareChain wraps the router with middleware components from golibry/go-http
 func buildGlobalMiddlewareChain(
 	router *http.ServeMux,
-	container *registry.Container,
+	logger *slog.Logger,
 	ctx context.Context,
 ) http.Handler {
-	logger := container.Logger()
-
 	// Start with the base mux as the handler
 	handler := http.Handler(router)
 
@@ -66,44 +100,6 @@ func buildGlobalMiddlewareChain(
 	handler = middleware.NewRecoverer(handler, ctx, logger)
 
 	return handler
-}
-
-// startServer configures and starts the HTTP server with graceful shutdown handling.
-// It listens for system signals and performs a graceful shutdown when received.
-func startServer(
-	container *registry.Container,
-	router *http.ServeMux,
-) {
-	httpConfig := container.Config().HttpServer
-	addr := httpConfig.BindAddress + ":" + httpConfig.BindPort
-	logger := container.Logger()
-
-	serverCtx, serverStopCtx := context.WithCancel(context.Background())
-
-	// Configure an HTTP server with security and performance settings
-	server := &http.Server{
-		Addr:              addr,
-		Handler:           buildGlobalMiddlewareChain(router, container, serverCtx),
-		MaxHeaderBytes:    httpConfig.MaxHeaderBytes,
-		ReadHeaderTimeout: httpConfig.RequestTimeout,
-		IdleTimeout:       httpConfig.RequestTimeout,
-	}
-
-	// Set up graceful shutdown handling
-	setupGracefulShutdown(server, serverCtx, serverStopCtx, logger, httpConfig.RequestTimeout)
-
-	logger.Info("HTTP server starting", "address", addr)
-
-	// Start the HTTP server
-	err := server.ListenAndServe()
-	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logger.Error("HTTP server failed to start", "error", err, "address", addr)
-		return
-	}
-
-	// Wait for a graceful shutdown to complete
-	<-serverCtx.Done()
-	logger.Info("HTTP server shutdown complete")
 }
 
 // setupGracefulShutdown configures signal handling for graceful server shutdown.

@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -10,15 +11,11 @@ import (
 type LoggerService struct {
 	logger    *slog.Logger
 	logWriter LogWriter
+	io.Closer
 }
 
-func NewLoggerService(configService *ConfigService) (*LoggerService, error) {
-	if configService == nil {
-		return nil, fmt.Errorf("config service cannot be nil")
-	}
-
-	cfg := configService.Config()
-	logWriter, err := createLogWriter(cfg.LogPath)
+func NewLoggerService(logPath string, logLevel slog.Level) (*LoggerService, error) {
+	logWriter, err := createLogWriter(logPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log writer: %w", err)
 	}
@@ -27,7 +24,7 @@ func NewLoggerService(configService *ConfigService) (*LoggerService, error) {
 		slog.NewJSONHandler(
 			logWriter,
 			&slog.HandlerOptions{
-				Level: cfg.LogLevel,
+				Level: logLevel,
 			},
 		),
 	)

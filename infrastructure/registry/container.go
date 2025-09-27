@@ -43,7 +43,10 @@ func NewContainer() (*Container, error) {
 		return nil, fmt.Errorf("failed to create config service: %w", err)
 	}
 
-	loggerService, err := NewLoggerService(configService)
+	loggerService, err := NewLoggerService(
+		configService.Config().LogPath,
+		configService.Config().LogLevel,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logger service: %w", err)
 	}

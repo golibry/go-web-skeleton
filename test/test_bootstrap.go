@@ -2,14 +2,17 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 
+	"github.com/golibry/go-migrations/migration"
 	"github.com/golibry/go-web-skeleton/infrastructure/registry"
 	"github.com/golibry/go-web-skeleton/migrations/runner"
+	"github.com/golibry/go-web-skeleton/migrations/versions"
 )
 
 var (
@@ -129,12 +132,16 @@ func (tb *Bootstrap) SetupTestDb() error {
 	migrationsOk := false
 	runner.RunMigrations(
 		[]string{"up"},
-		func(code int) {
-			if code == 0 {
-				migrationsOk = true
-			}
+		runner.MigrationsRunnerOptions{
+			ExitFunc: func(code int) {
+				if code == 0 {
+					migrationsOk = true
+				}
+			},
+			OutputWriter:      migrationsOutput,
+			DbDsn:             tb.ConfigService.Config().Db.Dsn,
+			MigrationsFactory: func(db *sql.DB, ctx context.Context) []migration.Migration { return tb.buildMigrations(db, ctx) },
 		},
-		migrationsOutput,
 	)
 
 	if !migrationsOk {
@@ -142,6 +149,12 @@ func (tb *Bootstrap) SetupTestDb() error {
 	}
 
 	return err
+}
+
+func (tb *Bootstrap) buildMigrations(db *sql.DB, ctx context.Context) []migration.Migration {
+	return []migration.Migration{
+		&versions.Migration1755033922{Db: db, Ctx: ctx},
+	}
 }
 
 // initializeGlobalBootstrap sets up the global test bootstrap if we're running tests

@@ -25,8 +25,6 @@ type HttpServerConfig struct {
 	// RequestTimeout specifies the maximum duration for reading the entire request,
 	// including the body. A zero or negative value means there will be no timeout.
 	RequestTimeout time.Duration
-
-	ShutdownGracePeriod time.Duration
 }
 
 // Populate implements the go-config Config interface for HttpServerConfig.
@@ -36,12 +34,10 @@ func (h *HttpServerConfig) Populate() error {
 	bindPort, _ := params.GetEnvAsString("HTTP_BIND_PORT", "8080")
 	maxHeaderBytes, _ := params.GetEnvAsInt("HTTP_MAX_HEADER_BYTES", 1024*16)
 	requestTimeout, _ := params.GetEnvAsDuration("HTTP_REQUEST_TIMEOUT", 30*time.Second)
-	gracePeriod, _ := params.GetEnvAsDuration("HTTP_SHUTDOWN_GRACE_PERIOD", 15*time.Second)
 
 	h.BindAddress = bindAddress
 	h.BindPort = bindPort
 	h.MaxHeaderBytes = maxHeaderBytes
 	h.RequestTimeout = requestTimeout
-	h.ShutdownGracePeriod = gracePeriod
 	return nil
 }
