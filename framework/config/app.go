@@ -12,11 +12,11 @@ type App struct {
 	// AppBaseDir is the base directory path of the application.
 	// This is used as the root directory for relative paths and must be a valid directory.
 	// Defaults to the current working directory.
-	AppBaseDir string `validate:"required,dir"`
+	AppBaseDir string `env:"APP_BASE_DIR" validate:"required,dir"`
 
 	// AppEnv specifies the application environment.
 	// Valid values are: "prod", "dev", "test".
-	AppEnv string `validate:"required,oneof=prod dev test loc stg"`
+	AppEnv string `env:"APP_ENV" default:"loc" validate:"required,oneof=prod dev test loc stg"`
 }
 
 // Populate implements the go-config Config interface for App.

@@ -17,7 +17,7 @@ type Log struct {
 
 	// LogPath specifies where log output should be directed.
 	// Valid values are: "stdout", "stderr", or a file path.
-	LogPath string `validate:"required,logpath"`
+	LogPath string `env:"APP_LOG_PATH" default:"stdout" validate:"required,logpath"`
 }
 
 // Populate implements the go-config Config interface for the top-level Log.

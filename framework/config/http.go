@@ -11,24 +11,24 @@ import (
 type HttpServer struct {
 	// BindAddress specifies the IP address the HTTP server should bind to.
 	// Must be a valid IPv4 address (e.g., "0.0.0.0", "127.0.0.1").
-	BindAddress string `validate:"ipv4"`
+	BindAddress string `env:"HTTP_BIND_ADDRESS" default:"0.0.0.0" validate:"ipv4"`
 
 	// BindPort specifies the port number the HTTP server should listen to.
 	// Must be a numeric value (e.g., "8080", "3000").
-	BindPort string `validate:"numeric"`
+	BindPort string `env:"HTTP_BIND_PORT" default:"8080" validate:"numeric"`
 
 	// MaxHeaderBytes controls the maximum number of bytes the server will read
 	// parsing the request header's keys and values, including the request line.
 	// Must be between 0 and 64,000 bytes.
-	MaxHeaderBytes int `validate:"number,gte=0,lte=64000"`
+	MaxHeaderBytes int `env:"HTTP_MAX_HEADER_BYTES" default:"16384" validate:"number,gte=0,lte=64000"`
 
 	// RequestTimeout specifies the maximum duration for reading the entire request,
 	// including the body. A zero or negative value means there will be no timeout.
-	RequestTimeout time.Duration
+	RequestTimeout time.Duration `env:"HTTP_REQUEST_TIMEOUT" default:"30s"`
 
 	// WriteTimeout specifies the maximum duration before timing out response writes.
 	// A zero or negative value means there will be no timeout.
-	WriteTimeout time.Duration
+	WriteTimeout time.Duration `env:"HTTP_WRITE_TIMEOUT"`
 }
 
 // Populate implements the go-config Config interface for HttpServer.

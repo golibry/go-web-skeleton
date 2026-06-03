@@ -47,11 +47,7 @@ func BuildCustom[T AppProvider](composite T) error {
 
 // DebugAny returns a masked debug string for any config struct.
 func DebugAny(v interface{}) string {
-	sensitiveKeys := []string{
-		"dsn", "password", "pass", "secret", "token", "apikey",
-		"api_key", "key", "auth", "authorization",
-	}
-	return goconfig.Debug(v, sensitiveKeys)
+	return goconfig.Debug(v)
 }
 
 func setDefaultLocalDevAppBaseDir(app *App) {
