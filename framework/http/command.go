@@ -11,6 +11,12 @@ type Command struct {
 	Options Options
 }
 
+func NewCommand(options Options) *Command {
+	return &Command{
+		Options: options,
+	}
+}
+
 func (c *Command) Id() string {
 	return "http:start"
 }

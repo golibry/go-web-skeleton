@@ -20,6 +20,7 @@ type Options struct {
 	ServerConfig   config.HttpServer
 	Logger         *slog.Logger
 	RegisterRoutes func(router *nethttp.ServeMux)
+	Middleware     MiddlewareOptions
 
 	// BuildGlobalMiddlewareChain wraps the router with middleware components, handlers
 	BuildGlobalMiddlewareChain func(
@@ -29,7 +30,18 @@ type Options struct {
 	) nethttp.Handler
 }
 
-func Start(options Options) {
+type MiddlewareOptions struct {
+	DisableAccessLog      bool
+	AccessLog             *middleware.AccessLogOptions
+	DisablePathNormalizer bool
+	DisableCSRF           bool
+	CSRF                  *middleware.CSRFOptions
+	EnableRequestTimeout  bool
+	RequestTimeout        *middleware.TimeoutOptions
+	DisableRecoverer      bool
+}
+
+func NewServer(options Options) (*nethttp.Server, context.Context, context.CancelFunc) {
 	if options.RegisterRoutes == nil {
 		panic(
 			fmt.Errorf(
@@ -48,11 +60,9 @@ func Start(options Options) {
 		)
 	}
 
-	// Initialize HTTP router and register application routes
 	router := nethttp.NewServeMux()
 	options.RegisterRoutes(router)
 
-	// Start the HTTP server with a graceful shutdown
 	addr := net.JoinHostPort(options.ServerConfig.BindAddress, options.ServerConfig.BindPort)
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
 
@@ -60,30 +70,40 @@ func Start(options Options) {
 	if options.BuildGlobalMiddlewareChain != nil {
 		handler = options.BuildGlobalMiddlewareChain(router, options.Logger, serverCtx)
 	} else {
-		handler = buildGlobalMiddlewareChain(router, options.Logger)
+		handler = buildGlobalMiddlewareChain(
+			router,
+			options.Logger,
+			serverCtx,
+			options.Middleware,
+			options.ServerConfig.RequestTimeout,
+		)
 	}
 
-	// Configure an HTTP server with security and performance settings
-	server := &nethttp.Server{
+	return &nethttp.Server{
 		Addr:              addr,
 		Handler:           handler,
 		MaxHeaderBytes:    options.ServerConfig.MaxHeaderBytes,
 		ReadHeaderTimeout: options.ServerConfig.RequestTimeout,
 		IdleTimeout:       options.ServerConfig.RequestTimeout,
 		ReadTimeout:       options.ServerConfig.RequestTimeout,
-	}
+		WriteTimeout:      options.ServerConfig.WriteTimeout,
+	}, serverCtx, serverStopCtx
+}
+
+func Start(options Options) {
+	server, serverCtx, serverStopCtx := NewServer(options)
 
 	// Set up graceful shutdown handling
 	setupGracefulShutdown(
 		server, serverCtx, serverStopCtx, options.Logger, options.ServerConfig.RequestTimeout,
 	)
 
-	options.Logger.Info("HTTP server started", "address", addr)
+	options.Logger.Info("HTTP server started", "address", server.Addr)
 
 	// Start the HTTP server
 	err := server.ListenAndServe()
 	if err != nil && !errors.Is(err, nethttp.ErrServerClosed) {
-		options.Logger.Error("HTTP server failed to start", "error", err, "address", addr)
+		options.Logger.Error("HTTP server failed to start", "error", err, "address", server.Addr)
 		serverStopCtx()
 		return
 	}
@@ -97,21 +117,48 @@ func Start(options Options) {
 func buildGlobalMiddlewareChain(
 	router *nethttp.ServeMux,
 	logger *slog.Logger,
+	ctx context.Context,
+	options MiddlewareOptions,
+	requestTimeout time.Duration,
 ) nethttp.Handler {
 	// Start with the base mux as the handler
 	handler := nethttp.Handler(router)
 
-	// Wrap with Access Logger middleware
-	accessLogOptions := middleware.AccessLogOptions{
-		LogClientIp: true,
+	if options.EnableRequestTimeout {
+		requestTimeoutOptions := middleware.TimeoutOptions{
+			Timeout: requestTimeout,
+		}
+		if options.RequestTimeout != nil {
+			requestTimeoutOptions = *options.RequestTimeout
+		}
+		handler = middleware.NewTimeoutMiddleware(handler, logger, requestTimeoutOptions)
 	}
-	handler = middleware.NewHTTPAccessLogger(handler, logger, accessLogOptions)
 
-	// Wrap with path normalizer
-	handler = middleware.NewPathNormalizer(handler)
+	if !options.DisableCSRF {
+		csrfOptions := middleware.CSRFOptions{}
+		if options.CSRF != nil {
+			csrfOptions = *options.CSRF
+		}
+		handler = middleware.NewCSRFMiddleware(handler, logger, csrfOptions)
+	}
 
-	// Wrap with Recoverer middleware (outermost layer)
-	handler = middleware.NewRecoverer(handler, context.Background(), logger)
+	if !options.DisablePathNormalizer {
+		handler = middleware.NewPathNormalizer(handler)
+	}
+
+	if !options.DisableAccessLog {
+		accessLogOptions := middleware.AccessLogOptions{
+			LogClientIp: true,
+		}
+		if options.AccessLog != nil {
+			accessLogOptions = *options.AccessLog
+		}
+		handler = middleware.NewHTTPAccessLogger(handler, logger, accessLogOptions)
+	}
+
+	if !options.DisableRecoverer {
+		handler = middleware.NewRecoverer(handler, ctx, logger)
+	}
 
 	return handler
 }

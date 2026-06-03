@@ -25,6 +25,10 @@ type HttpServer struct {
 	// RequestTimeout specifies the maximum duration for reading the entire request,
 	// including the body. A zero or negative value means there will be no timeout.
 	RequestTimeout time.Duration
+
+	// WriteTimeout specifies the maximum duration before timing out response writes.
+	// A zero or negative value means there will be no timeout.
+	WriteTimeout time.Duration
 }
 
 // Populate implements the go-config Config interface for HttpServer.
@@ -34,10 +38,12 @@ func (h *HttpServer) Populate() error {
 	bindPort, _ := params.GetEnvAsString("HTTP_BIND_PORT", "8080")
 	maxHeaderBytes, _ := params.GetEnvAsInt("HTTP_MAX_HEADER_BYTES", 1024*16)
 	requestTimeout, _ := params.GetEnvAsDuration("HTTP_REQUEST_TIMEOUT", 30*time.Second)
+	writeTimeout, _ := params.GetEnvAsDuration("HTTP_WRITE_TIMEOUT", requestTimeout)
 
 	h.BindAddress = bindAddress
 	h.BindPort = bindPort
 	h.MaxHeaderBytes = maxHeaderBytes
 	h.RequestTimeout = requestTimeout
+	h.WriteTimeout = writeTimeout
 	return nil
 }
