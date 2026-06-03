@@ -19,7 +19,7 @@ import (
 const (
 	DriverMySQL             = "mysql"
 	DriverPostgres          = "postgres"
-	defaultExecutionsTable  = "migration_executions"
+	defaultExecutionsTable  = "migrations_executions"
 	defaultMigrationsDriver = DriverMySQL
 )
 
@@ -35,6 +35,14 @@ var (
 type Migrations struct {
 	cli.CommandWithoutFlags
 	Options Options
+}
+
+func NewCommand(database config.Database) *Migrations {
+	return &Migrations{
+		Options: Options{
+			Database: database,
+		},
+	}
 }
 
 type Options struct {
@@ -252,7 +260,63 @@ func buildRegistry(
 }
 
 func unsupportedDriverError(driverName string) error {
-	return fmt.Errorf("%w %q", ErrUnsupportedDriver, canonicalDriverName(driverName))
+	driverName = canonicalDriverName(driverName)
+	if isSupportedDriver(driverName) {
+		return fmt.Errorf(
+			"%w %q: rebuild the app with MIGRATIONS_DRIVER=%s or the matching Go build tag",
+			ErrUnsupportedDriver,
+			driverName,
+			driverName,
+		)
+	}
+
+	return fmt.Errorf(
+		"%w %q: supported migrations drivers are %s and %s",
+		ErrUnsupportedDriver,
+		driverName,
+		DriverMySQL,
+		DriverPostgres,
+	)
+}
+
+func repositoryBuildMismatchError(requestedDriver, builtDriver string) error {
+	requestedDriver = canonicalDriverName(requestedDriver)
+	builtDriver = canonicalDriverName(builtDriver)
+
+	return fmt.Errorf(
+		"%w %q: this build includes the %q migrations repository; rebuild with MIGRATIONS_DRIVER=%s",
+		ErrUnsupportedDriver,
+		requestedDriver,
+		builtDriver,
+		requestedDriver,
+	)
+}
+
+func missingRepositoryBuildTagError(driverName string) error {
+	driverName = canonicalDriverName(driverName)
+	return fmt.Errorf(
+		"%w %q: no migrations repository was built; rebuild with MIGRATIONS_DRIVER=%s",
+		ErrUnsupportedDriver,
+		driverName,
+		driverName,
+	)
+}
+
+func conflictingRepositoryBuildTagsError(driverName string) error {
+	return fmt.Errorf(
+		"%w %q: multiple migrations repositories were built; use exactly one MIGRATIONS_DRIVER value",
+		ErrUnsupportedDriver,
+		canonicalDriverName(driverName),
+	)
+}
+
+func isSupportedDriver(driverName string) bool {
+	switch canonicalDriverName(driverName) {
+	case DriverMySQL, DriverPostgres:
+		return true
+	default:
+		return false
+	}
 }
 
 func canonicalDriverName(driverName string) string {

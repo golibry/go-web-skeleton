@@ -1,4 +1,4 @@
-//go:build postgres
+//go:build postgres && !mysql
 
 package migrations
 
@@ -11,7 +11,7 @@ import (
 
 func newRepository(options Options, db *sql.DB) (execution.Repository, error) {
 	if canonicalDriverName(options.Driver) != DriverPostgres {
-		return nil, unsupportedDriverError(options.Driver)
+		return nil, repositoryBuildMismatchError(options.Driver, DriverPostgres)
 	}
 
 	return repository.NewPostgresHandler(options.DSN, options.ExecutionsTable, options.Context, db)

@@ -3,7 +3,9 @@ package migrations
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	gomigration "github.com/golibry/go-migrations/migration"
@@ -70,6 +72,71 @@ func TestOptionsWithDefaultsUsesDatabaseConfig(t *testing.T) {
 	}
 	if resolved.ExecutionsTable != "executions" {
 		t.Fatalf("ExecutionsTable = %q, want executions", resolved.ExecutionsTable)
+	}
+}
+
+func TestOptionsWithDefaultsUsesFrameworkExecutionsTableDefault(t *testing.T) {
+	resolved := Options{
+		Database: config.Database{
+			Dsn:    "db-dsn",
+			Driver: DriverMySQL,
+			Migrations: config.Migrations{
+				MigrationsDirPath: "migrations",
+			},
+		},
+	}.withDefaults()
+
+	if resolved.ExecutionsTable != defaultExecutionsTable {
+		t.Fatalf("ExecutionsTable = %q, want %q", resolved.ExecutionsTable, defaultExecutionsTable)
+	}
+}
+
+func TestNewCommandUsesDatabaseConfig(t *testing.T) {
+	database := config.Database{
+		Dsn:    "db-dsn",
+		Driver: DriverMySQL,
+	}
+
+	command := NewCommand(database)
+
+	if command.Options.Database.Dsn != database.Dsn {
+		t.Fatalf("NewCommand().Options.Database.Dsn = %q, want %q", command.Options.Database.Dsn, database.Dsn)
+	}
+	if command.Options.Database.Driver != database.Driver {
+		t.Fatalf("NewCommand().Options.Database.Driver = %q, want %q", command.Options.Database.Driver, database.Driver)
+	}
+}
+
+func TestUnsupportedDriverErrorSuggestsInstalledDriver(t *testing.T) {
+	err := repositoryBuildMismatchError(DriverPostgres, DriverMySQL)
+
+	if !errors.Is(err, ErrUnsupportedDriver) {
+		t.Fatalf("error = %v, want ErrUnsupportedDriver", err)
+	}
+	if !strings.Contains(err.Error(), "MIGRATIONS_DRIVER=postgres") {
+		t.Fatalf("error = %q, want rebuild suggestion", err.Error())
+	}
+}
+
+func TestMissingRepositoryBuildTagError(t *testing.T) {
+	err := missingRepositoryBuildTagError(DriverMySQL)
+
+	if !errors.Is(err, ErrUnsupportedDriver) {
+		t.Fatalf("error = %v, want ErrUnsupportedDriver", err)
+	}
+	if !strings.Contains(err.Error(), "no migrations repository was built") {
+		t.Fatalf("error = %q, want missing repository message", err.Error())
+	}
+}
+
+func TestConflictingRepositoryBuildTagsError(t *testing.T) {
+	err := conflictingRepositoryBuildTagsError(DriverMySQL)
+
+	if !errors.Is(err, ErrUnsupportedDriver) {
+		t.Fatalf("error = %v, want ErrUnsupportedDriver", err)
+	}
+	if !strings.Contains(err.Error(), "multiple migrations repositories were built") {
+		t.Fatalf("error = %q, want conflicting repository message", err.Error())
 	}
 }
 
