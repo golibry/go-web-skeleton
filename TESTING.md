@@ -1,277 +1,124 @@
-# Testing Guide
+# Testing
 
-This guide explains how to set up and use the test bootstrap mechanism in the Go Web Skeleton project.
+The skeleton keeps testing support split the same way as the application runtime:
 
-## Test Bootstrap Overview
+- `framework/testing` contains small reusable test bootstrap helpers.
+- each generated app owns its own test bootstrap, usually under `test/bootstrap.go`.
 
-The project provides a test bootstrap mechanism to standardize test environment setup across all test packages. This ensures consistent configuration, database connections, and cleanup procedures.
+The framework testkit does not know about an application's config struct, database driver choice, migrations package, or cleanup strategy. The app-specific bootstrap provides those choices.
 
-## Bootstrap Components
+## Framework Testkit
 
-### TestBootstrap (`infrastructure/registry/test_bootstrap.go`)
+`framework/testing` provides:
 
-The `TestBootstrap` struct provides centralized test environment setup:
+- `EnsureTestEnv()`: sets `APP_ENV=test` when no environment was selected
+- `Setup(...)`: loads config through an app-provided function, runs `BeforeSetup` hooks, builds a framework container, and optionally calls an app-provided migration callback
+- `Bootstrap.Cleanup(...)`: runs app-registered cleanup hooks for extra resources
+- `Bootstrap.Close()`: closes resources created by the container
+
+## App Bootstrap
+
+An app bootstrap should decide:
+
+- which config struct to load
+- which common services the container should create
+- whether migrations should run before integration tests
+- how the full test environment is reset before a suite starts
+- whether extra cleanup is needed after tests
+
+The advanced example has a minimal app-specific bootstrap at:
+
+```text
+_examples/advanced/test/bootstrap.go
+```
+
+## Usage
+
+Use the app bootstrap from tests that need integration resources:
 
 ```go
-type TestBootstrap struct {
-    ConfigService *ConfigService
-    DbService     *DbService
-    LoggerService *LoggerService
+func TestSomething(t *testing.T) {
+	bootstrap, err := test.Setup()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = bootstrap.Close() }()
+
+	db := bootstrap.Container.DB()
+	logger := bootstrap.Container.Logger()
+
+	_ = db
+	_ = logger
 }
 ```
 
-### Key Functions
-
-#### `SetupTestEnvironment()`
-Initializes the test environment with proper configuration:
-- Sets `APP_ENV=test` if not already set
-- Loads test-specific environment variables from `.env.test.local`
-- Initializes all core services (Config, Database, Logger)
-
-#### `TeardownTestEnvironment()`
-Cleans up resources after tests complete:
-- Closes database connections
-- Performs necessary cleanup
-
-#### `CleanupTestData()`
-Removes test data between test runs:
-- Cleans up all test tables
-- Ensures test isolation
-
-## Usage Patterns
-
-### Pattern 1: TestMain Bootstrap (Recommended)
-
-Use this pattern for package-level test setup:
+For package-level setup, wrap it in `TestMain`:
 
 ```go
-package domain
-
-import (
-    "testing"
-    "github.com/golibry/go-web-skeleton/infrastructure/registry"
-)
-
 func TestMain(m *testing.M) {
-    registry.TestMainBootstrap(m)
+	bootstrap, err := test.Setup()
+	if err != nil {
+		panic(err)
+	}
+
+	code := m.Run()
+	_ = bootstrap.Close()
+	os.Exit(code)
 }
 ```
 
-### Pattern 2: Test Suite Bootstrap
+## Environment Reset
 
-Use this pattern for testify/suite integration:
+The framework does not delete or recreate databases automatically. Reset is explicit: the app registers `BeforeSetup` hooks in its bootstrap. Those hooks run during `Setup(...)`, before the framework opens the normal app DB connection and before migrations run.
 
-```go
-package domain
+For integration and e2e suites, the preferred DB strategy is:
 
-import (
-    "testing"
-    "github.com/golibry/go-web-skeleton/infrastructure/registry"
-    "github.com/stretchr/testify/suite"
-)
+- drop the disposable test database
+- recreate the disposable test database
+- run migrations into the clean database
+- run the suite
 
-type MyTestSuite struct {
-    suite.Suite
-    bootstrap  *registry.TestBootstrap
-    // your test dependencies
-}
+`framework/testing` exposes `SQLDatabaseResetter` for this. The app still decides the admin DSN, database name, and whether this reset is appropriate for the environment.
 
-func (suite *MyTestSuite) SetupSuite() {
-    var err error
-    suite.bootstrap, err = registry.SetupTestEnvironment()
-    if err != nil {
-        suite.T().Fatalf("Failed to setup test environment: %v", err)
-    }
-    
-    // Initialize your test dependencies using bootstrap services
-    // suite.repository = NewRepository(*suite.bootstrap.DbService)
-}
+The SQL reset helper uses the normal app database config for driver and database name. The only reset env var normally needed is:
 
-func (suite *MyTestSuite) TearDownSuite() {
-    if suite.bootstrap != nil {
-        suite.bootstrap.TeardownTestEnvironment()
-    }
-}
-
-func (suite *MyTestSuite) TearDownTest() {
-    if suite.bootstrap != nil {
-        if err := suite.bootstrap.CleanupTestData(); err != nil {
-            suite.T().Logf("Warning: Failed to clean up test data: %v", err)
-        }
-    }
-}
-
-func TestMyTestSuite(t *testing.T) {
-    suite.Run(t, new(MyTestSuite))
-}
+```text
+TEST_RESET_DATABASE=true
 ```
 
-## Environment Configuration
+The app bootstrap derives the admin connection from the normal app DSN before the framework opens the app database connection.
 
-### Test Environment Files
+Because database reset is destructive, the helper refuses to run unless:
 
-The bootstrap mechanism loads environment variables in the following priority order:
+- `APP_ENV=test`
+- the database name contains `test`
 
-1. `.env.test.local` (highest priority - for local test configuration)
-2. `.env.local` (skipped in test environment)  
-3. `.env.test` (shared test configuration)
-4. `.env` (lowest priority - base configuration)
+Those guardrails can be overridden only with explicit env vars:
 
-### Required Test Configuration
-
-Your `.env.test.local` file must contain:
-
-```bash
-# Test environment configuration
-APP_BASE_DIR=/path/to/your/project
-APP_ENV=test
-APP_LOG_LEVEL=info
-APP_LOG_PATH=stdout
-
-# Database Configuration for Test Environment
-DB_DSN=user:password@tcp(localhost:3306)/test_database
-DB_MAX_IDLE_CONNECTIONS=2
-DB_MAX_OPEN_CONNECTIONS=10
-DB_CONNECTION_MAX_IDLE_TIME=3m
-DB_CONNECTION_MAX_LIFETIME=3m
-DB_MIGRATIONS_DIR_PATH=/path/to/your/project/migrations/versions
-
-# HTTP Server Configuration
-HTTP_BIND_ADDRESS=127.0.0.1
-HTTP_BIND_PORT=8081
-HTTP_MAX_HEADER_BYTES=16384
-HTTP_REQUEST_TIMEOUT=15s
+```text
+TEST_RESET_DATABASE_ALLOW_UNSAFE=true
+TEST_RESET_DATABASE_ALLOW_ANY_ENV=true
+TEST_RESET_DATABASE_ALLOW_ANY_DATABASE=true
 ```
 
-## Best Practices
+Apps can also register extra cleanup hooks for cache keys, queues, files, search indexes, or any other state used by tests.
 
-### 1. Use Consistent Setup
-Always use the bootstrap mechanism for integration tests that require database or configuration access.
+The intended lifecycle is:
 
-### 2. Test Isolation
-Use `CleanupTestData()` in `TearDownTest()` methods to ensure test isolation:
+- `BeforeSetup`: reset full environment before the container opens app resources
+- `Migrate`: create the clean schema after the reset
+- tests: run against the clean environment
+- `Cleanup`: optionally clear non-DB resources after tests
+- `Close`: close framework services
 
-```go
-func (suite *MyTestSuite) TearDownTest() {
-    if suite.bootstrap != nil {
-        suite.bootstrap.CleanupTestData()
-    }
-}
-```
+## Cleanup Helpers
 
-### 3. Error Handling
-Always check for errors during setup and fail fast:
+`framework/testing` includes small opt-in cleanup helpers:
 
-```go
-suite.bootstrap, err = registry.SetupTestEnvironment()
-if err != nil {
-    suite.T().Fatalf("Failed to setup test environment: %v", err)
-}
-```
+- `FilesystemCleaner`: removes configured paths
+- `DirectoryCleaner`: empties a configured directory
+- `RedisCleaner`: accepts a small Redis-compatible interface and either flushes the selected DB or deletes configured keys
 
-### 4. Resource Management
-Always call `TeardownTestEnvironment()` to prevent resource leaks:
+The Redis helper does not import a Redis client package. Generated apps can adapt whichever Redis client they install.
 
-```go
-func (suite *MyTestSuite) TearDownSuite() {
-    if suite.bootstrap != nil {
-        suite.bootstrap.TeardownTestEnvironment()
-    }
-}
-```
-
-## Example Implementation
-
-Here's a complete example of a repository test using the bootstrap mechanism:
-
-```go
-package domain
-
-import (
-    "context"
-    "testing"
-
-    "github.com/golibry/go-web-skeleton/infrastructure/registry"
-    "github.com/stretchr/testify/assert"
-    "github.com/stretchr/testify/suite"
-)
-
-type DummyRepositoryTestSuite struct {
-    suite.Suite
-    bootstrap  *registry.TestBootstrap
-    repository *DummyRepository
-}
-
-func (suite *DummyRepositoryTestSuite) SetupSuite() {
-    var err error
-    suite.bootstrap, err = registry.SetupTestEnvironment()
-    if err != nil {
-        suite.T().Fatalf("Failed to setup test environment: %v", err)
-    }
-    suite.repository = NewDummyRepository(*suite.bootstrap.DbService)
-}
-
-func (suite *DummyRepositoryTestSuite) TearDownSuite() {
-    if suite.bootstrap != nil {
-        suite.bootstrap.TeardownTestEnvironment()
-    }
-}
-
-func (suite *DummyRepositoryTestSuite) TearDownTest() {
-    if suite.bootstrap != nil {
-        if err := suite.bootstrap.CleanupTestData(); err != nil {
-            suite.T().Logf("Warning: Failed to clean up test data: %v", err)
-        }
-    }
-}
-
-func (suite *DummyRepositoryTestSuite) TestItCanSaveDummy() {
-    // Given
-    ctx := context.Background()
-    dummy, _ := NewDummy("Test Name")
-
-    // When
-    err := suite.repository.Save(ctx, dummy)
-
-    // Then
-    assert.NoError(suite.T(), err)
-    assert.Greater(suite.T(), dummy.GetId(), 0)
-}
-
-func TestDummyRepositoryTestSuite(t *testing.T) {
-    suite.Run(t, new(DummyRepositoryTestSuite))
-}
-```
-
-## Troubleshooting
-
-### Configuration Issues
-If you encounter configuration validation errors:
-1. Verify your `.env.test.local` file exists and contains all required variables
-2. Check that file paths are absolute and correct for your system
-3. Ensure database connection details are valid
-
-### Database Connection Issues
-If database tests fail:
-1. Verify your test database exists and is accessible
-2. Check database credentials in `.env.test.local`
-3. Ensure test database schema is up to date
-
-### Environment Variable Issues
-If environment variables aren't loading:
-1. Check file paths in your configuration
-2. Verify working directory matches your project root
-3. Ensure `.env.test.local` file permissions are readable
-
-## Integration with CI/CD
-
-For continuous integration, create a `.env.test` file (without `.local`) with CI-appropriate values:
-
-```bash
-# CI Test Configuration
-APP_ENV=test
-DB_DSN=testuser:testpass@tcp(test-db:3306)/test_db
-DB_MIGRATIONS_DIR_PATH=/github/workspace/migrations/versions
-```
-
-This approach allows local developers to use `.env.test.local` while CI systems use `.env.test`.
+The old global test bootstrap that dropped and recreated MySQL databases implicitly was removed because it was too application-specific. The new version keeps the operation explicit and app-owned.
