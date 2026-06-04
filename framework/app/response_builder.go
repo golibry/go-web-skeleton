@@ -56,6 +56,30 @@ func (rbs *ResponseBuilder) Text(w http.ResponseWriter, status int, s string) er
 	return err
 }
 
+func (rbs *ResponseBuilder) HTML(w http.ResponseWriter, status int, s string) error {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, err := io.WriteString(w, s)
+	return err
+}
+
+func (rbs *ResponseBuilder) NoContent(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (rbs *ResponseBuilder) Redirect(
+	w http.ResponseWriter,
+	r *http.Request,
+	url string,
+	status int,
+) {
+	if status == 0 {
+		status = http.StatusFound
+	}
+
+	http.Redirect(w, r, url, status)
+}
+
 func defaultErrorCategories() []*httplib.ErrorCategory {
 	badRequestCategory := httplib.NewErrorCategory(http.StatusBadRequest)
 	httplib.AddErrorType[*domain.Error](badRequestCategory)

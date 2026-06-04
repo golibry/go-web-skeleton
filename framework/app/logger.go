@@ -20,6 +20,10 @@ type LoggerService struct {
 	io.Closer
 }
 
+type LoggerOptions struct {
+	SetDefault bool
+}
+
 // NewLoggerService creates a new logger service
 //
 // logPath can be one of the following:
@@ -28,7 +32,11 @@ type LoggerService struct {
 // - a file path to log to a file
 //
 // logLevel is the log level to use
-func NewLoggerService(logPath string, logLevel slog.Level) (*LoggerService, error) {
+func NewLoggerService(
+	logPath string,
+	logLevel slog.Level,
+	options ...LoggerOptions,
+) (*LoggerService, error) {
 	logWriter, err := createLogWriter(logPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log writer: %w", err)
@@ -43,8 +51,14 @@ func NewLoggerService(logPath string, logLevel slog.Level) (*LoggerService, erro
 		),
 	)
 
-	// Set as default logger
-	slog.SetDefault(logger)
+	loggerOptions := LoggerOptions{SetDefault: true}
+	if len(options) > 0 {
+		loggerOptions = options[0]
+	}
+
+	if loggerOptions.SetDefault {
+		slog.SetDefault(logger)
+	}
 
 	return &LoggerService{
 		logger:    logger,
