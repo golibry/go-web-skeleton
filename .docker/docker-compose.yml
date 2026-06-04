@@ -1,9 +1,8 @@
 name: go-web-skeleton
 
 services:
-  mariadb:
-    image: mariadb:11.4
-    container_name: go-web-skeleton-mariadb
+  mysql:
+    image: mysql:8.4
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
@@ -11,23 +10,15 @@ services:
       MYSQL_USER: ${DB_USER:-app_user}
       MYSQL_PASSWORD: ${DB_PASSWORD:-app_password}
     ports:
-      - "3306:3306"
+      - "${DB_PORT:-3306}:3306"
     volumes:
-      - mariadb_data:/var/lib/mysql
-      - ./init:/docker-entrypoint-initdb.d
-    networks:
-      - app-network
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
       start_period: 30s
 
 volumes:
-  mariadb_data:
-    driver: local
-
-networks:
-  app-network:
-    driver: bridge
+  mysql_data:
