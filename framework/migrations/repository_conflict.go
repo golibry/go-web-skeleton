@@ -1,4 +1,4 @@
-//go:build mysql && postgres
+//go:build (mysql && postgres) || (mysql && sqlite) || (postgres && sqlite)
 
 package migrations
 

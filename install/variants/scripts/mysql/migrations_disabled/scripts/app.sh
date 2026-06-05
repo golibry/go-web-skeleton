@@ -13,7 +13,7 @@ MIGRATIONS_ENABLED="false"
 
 usage() {
 	printf 'Usage: %s {test|build|run|migrations|docker} [args...]\n' "$0"
-	printf 'Env: DATABASE_DRIVER=mysql|postgres GO_TAGS=<tags> APP_ENTRY=<main package> APP_OUTPUT=<binary path>\n'
+	printf 'Env: DATABASE_DRIVER=mysql|postgres|sqlite GO_TAGS=<tags> APP_ENTRY=<main package> APP_OUTPUT=<binary path>\n'
 	printf 'Docker: %s docker up -d | down | ps | logs\n' "$0"
 }
 

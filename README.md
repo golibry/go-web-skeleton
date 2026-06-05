@@ -32,6 +32,7 @@ For example, the installer copies only one database driver variant:
 
 - `install/variants/database/mysql/infrastructure/database/driver_mysql.go`
 - `install/variants/database/postgres/infrastructure/database/driver_postgres.go`
+- `install/variants/database/sqlite/infrastructure/database/driver_sqlite.go`
 
 The installed app keeps only the selected one.
 
@@ -41,12 +42,6 @@ Run the Go installer directly:
 
 ```bash
 go run github.com/golibry/go-web-skeleton/cmd/golibry-web@latest install
-```
-
-Or use the thin Bash wrapper from the project root:
-
-```bash
-scripts/install.sh
 ```
 
 The installer asks for the application name, Go module path, database driver, whether to install migrations, and whether to install local Docker database files. For non-interactive installs, pass flags:
@@ -60,12 +55,15 @@ go run github.com/golibry/go-web-skeleton/cmd/golibry-web@latest install \
   -docker=true
 ```
 
+Use `-database-driver sqlite` for a local SQLite app. SQLite installs the embedded database driver and skips local Docker database files.
+
 The installer uses these real files as its source of truth:
 
 ```text
 install/app/
 install/variants/database/mysql/
 install/variants/database/postgres/
+install/variants/database/sqlite/
 ```
 
 The installer mostly copies files as-is. The only rendered placeholder is the app module path needed by Go imports in the generated CLI entrypoint.
@@ -78,13 +76,14 @@ Use the Bash app helper after installation:
 scripts/app.sh test
 scripts/app.sh build
 scripts/app.sh run http:start
-scripts/app.sh migrations up
+scripts/app.sh migrations stats
 ```
 
 `scripts/app.sh` applies the selected database build tag automatically. You can still override values when needed:
 
 ```bash
 DATABASE_DRIVER=postgres scripts/app.sh test
+DATABASE_DRIVER=sqlite scripts/app.sh test
 APP_ENTRY=./cmd/app scripts/app.sh build
 ```
 

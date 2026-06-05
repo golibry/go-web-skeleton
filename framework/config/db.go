@@ -47,7 +47,7 @@ type Database struct {
 	// Example: "user:password@tcp(localhost:3306)/dbname"
 	Dsn string `env:"DB_DSN" validate:"required"`
 
-	// The database driver to use for connecting to the database (e.g., "mysql", "postgres", etc.).
+	// The database driver to use for connecting to the database (e.g., "mysql", "postgres", "sqlite").
 	Driver string `env:"DB_DRIVER" default:"mysql" validate:"required"`
 
 	// MaxIdleConnections sets the maximum number of connections in the idle connection pool.

@@ -1,3 +1,5 @@
 .env.local
 .env.*.local
 build/
+var/*.sqlite
+var/*.sqlite-*

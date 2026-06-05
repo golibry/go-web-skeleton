@@ -1,4 +1,4 @@
-//go:build postgres && !mysql
+//go:build postgres && !mysql && !sqlite
 
 package migrations
 

@@ -19,6 +19,8 @@ func TestCanonicalDriverName(t *testing.T) {
 		"postgres":   DriverPostgres,
 		"postgresql": DriverPostgres,
 		"pgx":        DriverPostgres,
+		"sqlite":     DriverSQLite,
+		"sqlite3":    DriverSQLite,
 		" custom ":   "custom",
 	}
 
@@ -36,6 +38,8 @@ func TestDefaultSQLDriverName(t *testing.T) {
 		"postgres":   "postgres",
 		"postgresql": "postgres",
 		"pgx":        "pgx",
+		"sqlite":     "sqlite",
+		"sqlite3":    "sqlite",
 	}
 
 	for input, expected := range tests {

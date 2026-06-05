@@ -19,6 +19,7 @@ import (
 const (
 	DriverMySQL             = "mysql"
 	DriverPostgres          = "postgres"
+	DriverSQLite            = "sqlite"
 	defaultExecutionsTable  = "migrations_executions"
 	defaultMigrationsDriver = DriverMySQL
 )
@@ -271,11 +272,12 @@ func unsupportedDriverError(driverName string) error {
 	}
 
 	return fmt.Errorf(
-		"%w %q: supported migrations drivers are %s and %s",
+		"%w %q: supported migrations drivers are %s, %s and %s",
 		ErrUnsupportedDriver,
 		driverName,
 		DriverMySQL,
 		DriverPostgres,
+		DriverSQLite,
 	)
 }
 
@@ -312,7 +314,7 @@ func conflictingRepositoryBuildTagsError(driverName string) error {
 
 func isSupportedDriver(driverName string) bool {
 	switch canonicalDriverName(driverName) {
-	case DriverMySQL, DriverPostgres:
+	case DriverMySQL, DriverPostgres, DriverSQLite:
 		return true
 	default:
 		return false
@@ -325,6 +327,8 @@ func canonicalDriverName(driverName string) string {
 		return DriverMySQL
 	case "postgres", "postgresql", "pgx":
 		return DriverPostgres
+	case "sqlite", "sqlite3":
+		return DriverSQLite
 	default:
 		return strings.ToLower(strings.TrimSpace(driverName))
 	}
@@ -336,6 +340,8 @@ func defaultSQLDriverName(driverName string) string {
 		return DriverMySQL
 	case "postgresql":
 		return DriverPostgres
+	case "sqlite3":
+		return DriverSQLite
 	default:
 		return strings.ToLower(strings.TrimSpace(driverName))
 	}

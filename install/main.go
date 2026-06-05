@@ -141,7 +141,7 @@ func readOptions(args []string) (options, error) {
 		&opts.DatabaseDriver,
 		"database-driver",
 		envString("DATABASE_DRIVER", os.Getenv("MIGRATIONS_DRIVER")),
-		"database driver: mysql or postgres",
+		"database driver: mysql, postgres or sqlite",
 	)
 	flags.BoolVar(
 		&opts.MigrationsEnabled,
@@ -198,11 +198,13 @@ func readOptions(args []string) (options, error) {
 	if !migrationsFromEnv && !flagsProvided["migrations"] {
 		opts.MigrationsEnabled = askBool("Enable migrations?", true)
 	}
-	if !dockerFromEnv && !flagsProvided["docker"] {
+	if opts.DatabaseDriver == "sqlite" {
+		opts.DockerEnabled = false
+	} else if !dockerFromEnv && !flagsProvided["docker"] {
 		opts.DockerEnabled = askBool("Install local Docker database?", true)
 	}
 
-	if opts.DatabaseDriver != "mysql" && opts.DatabaseDriver != "postgres" {
+	if !isSupportedDatabaseDriver(opts.DatabaseDriver) {
 		return options{}, fmt.Errorf("unsupported database driver %q", opts.DatabaseDriver)
 	}
 	if opts.FrameworkVersion == "" {
@@ -429,7 +431,7 @@ func printNextSteps(opts options) {
 	fmt.Println("  scripts/app.sh build")
 	fmt.Println("  scripts/app.sh run http:start")
 	if opts.MigrationsEnabled {
-		fmt.Println("  scripts/app.sh migrations status")
+		fmt.Println("  scripts/app.sh migrations stats")
 	}
 }
 
@@ -516,8 +518,19 @@ func normalizeDriver(driver string) string {
 	switch strings.ToLower(strings.TrimSpace(driver)) {
 	case "postgresql", "pgx":
 		return "postgres"
+	case "sqlite3":
+		return "sqlite"
 	default:
 		return strings.ToLower(strings.TrimSpace(driver))
+	}
+}
+
+func isSupportedDatabaseDriver(driver string) bool {
+	switch normalizeDriver(driver) {
+	case "mysql", "postgres", "sqlite":
+		return true
+	default:
+		return false
 	}
 }
 
