@@ -40,6 +40,8 @@ func Run(args []string) error {
 }
 
 func run(args []string) error {
+	fmt.Fprintln(os.Stdout, "Golibry web installer")
+
 	opts, err := readOptions(args)
 	if err != nil {
 		return err
@@ -491,14 +493,12 @@ func askBool(label string, fallback bool) bool {
 
 func promptFromTerminal(label, fallback string) string {
 	reader := bufio.NewReader(os.Stdin)
-	input := os.Stdin
-	output := os.Stderr
+	output := os.Stdout
 	if runtime.GOOS != "windows" {
 		tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 		if err == nil {
 			defer tty.Close()
 			reader = bufio.NewReader(tty)
-			input = tty
 			output = tty
 		}
 	}
@@ -509,7 +509,6 @@ func promptFromTerminal(label, fallback string) string {
 	if err != nil {
 		return fallback
 	}
-	_ = input
 	return strings.TrimSpace(line)
 }
 
