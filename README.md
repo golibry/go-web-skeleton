@@ -26,35 +26,49 @@ The skeleton is organized for CQRS-style development:
 
 This module is not meant to behave like a large runtime framework that wires every choice dynamically. Instead, it is meant to be installed as a tailored app skeleton with reusable framework packages.
 
-The Bash installer asks what the app needs, then keeps only the files required by those choices. The generated app imports the framework packages through thin entrypoints, so application code does not need to know the lower-level bootstrap details.
+The installer is a Go command that copies real scaffold files from `install/app` and selected variant files from `install/variants`. The generated app imports the framework packages through thin entrypoints, so application code does not need to know the lower-level bootstrap details.
 
-For example, migrations are installed as a CLI command. If migrations are enabled, the installer asks for the database driver and keeps only one driver implementation:
+For example, the installer copies only one database driver variant:
 
-- `framework/migrations/repository_mysql.go`
-- `framework/migrations/repository_postgres.go`
+- `install/variants/database/mysql/infrastructure/database/driver_mysql.go`
+- `install/variants/database/postgres/infrastructure/database/driver_postgres.go`
 
-The installed app should keep only the selected one.
+The installed app keeps only the selected one.
 
 ## Install
 
-Run the installer from the project root:
+Run the Go installer directly:
+
+```bash
+go run github.com/golibry/go-web-skeleton/cmd/golibry-web@latest install
+```
+
+Or use the thin Bash wrapper from the project root:
 
 ```bash
 scripts/install.sh
 ```
 
-The installer currently asks whether to enable database migrations. If enabled, it asks which driver to use:
+The installer asks for the application name, Go module path, database driver, whether to install migrations, and whether to install local Docker database files. For non-interactive installs, pass flags:
 
-- `mysql`
-- `postgres`
-
-The installer writes local choices to:
-
-```text
-scripts/.app.env
+```bash
+go run github.com/golibry/go-web-skeleton/cmd/golibry-web@latest install \
+  -app-name my-app \
+  -module-path example.com/my-app \
+  -database-driver mysql \
+  -migrations=true \
+  -docker=true
 ```
 
-That file is intentionally local and ignored by Git.
+The installer uses these real files as its source of truth:
+
+```text
+install/app/
+install/variants/database/mysql/
+install/variants/database/postgres/
+```
+
+The installer mostly copies files as-is. The only rendered placeholder is the app module path needed by Go imports in the generated CLI entrypoint.
 
 ## App Commands
 
@@ -67,10 +81,10 @@ scripts/app.sh run http:start
 scripts/app.sh migrations up
 ```
 
-`scripts/app.sh` reads `scripts/.app.env` and applies the selected build tags automatically. You can still override values when needed:
+`scripts/app.sh` applies the selected database build tag automatically. You can still override values when needed:
 
 ```bash
-MIGRATIONS_DRIVER=postgres scripts/app.sh test
+DATABASE_DRIVER=postgres scripts/app.sh test
 APP_ENTRY=./cmd/app scripts/app.sh build
 ```
 
