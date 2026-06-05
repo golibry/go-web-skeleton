@@ -491,21 +491,25 @@ func askBool(label string, fallback bool) bool {
 
 func promptFromTerminal(label, fallback string) string {
 	reader := bufio.NewReader(os.Stdin)
-	file := os.Stdin
+	input := os.Stdin
+	output := os.Stderr
 	if runtime.GOOS != "windows" {
 		tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 		if err == nil {
 			defer tty.Close()
 			reader = bufio.NewReader(tty)
-			file = tty
+			input = tty
+			output = tty
 		}
 	}
 
-	fmt.Fprintf(file, "%s [%s]: ", label, fallback)
+	fmt.Fprintf(output, "%s [%s]: ", label, fallback)
+	_ = output.Sync()
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		return fallback
 	}
+	_ = input
 	return strings.TrimSpace(line)
 }
 
